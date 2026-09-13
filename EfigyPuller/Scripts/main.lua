@@ -73,9 +73,17 @@ local function scan()
     if tick >= nextDiscovery then
         nextDiscovery = tick + discoveryTicks
         relics = {}
+        local output = {}
         -- Native world actor lookup avoids repeated scans of the global UObject array.
-        gameplay:GetAllActorsOfClass(pawn, relicClass, relics)
+        gameplay:GetAllActorsOfClass(pawn, relicClass, output)
+        -- UE4SS out-array entries are RemoteUnrealParam wrappers. Resolve them
+        -- immediately; only cache UObject references, never parameter storage.
+        for _, entry in ipairs(output) do
+            local actor = entry:get()
+            if valid(actor) then relics[#relics + 1] = actor end
+        end
         if config.Debug then log("Loaded effigies: " .. tostring(#relics)) end
+        if #relics > 0 then warnOnce("discovered", "Effigy discovery working: " .. #relics .. " loaded actors.") end
     end
     local position = pawn:K2_GetActorLocation()
     local candidates, live = {}, {}
@@ -115,6 +123,7 @@ local function scan()
         local ok, err = pcall(function()
             if valid(candidate.actor) and candidate.actor.bPickedInClient == false then
                 networkPlayer:RequestObtainLevelObject_ToServer(candidate.actor)
+                warnOnce("first_request", "First nearby effigy pickup requested.")
                 if config.Debug then log("Pickup requested: " .. candidate.key) end
             end
         end)
@@ -126,7 +135,7 @@ if config.Enabled == false then
     log("Disabled in config.lua.")
     return
 end
-log(string.format("Loaded v0.1.1: auto-collect within %.1f meters, scanning every %d ms.", radius / 100, interval))
+log(string.format("Loaded v0.1.2: auto-collect within %.1f meters, scanning every %d ms.", radius / 100, interval))
 LoopAsync(interval, function()
     -- Do not enqueue more work while a paused/loading game has a scan outstanding.
     if pending then return false end

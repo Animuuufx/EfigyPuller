@@ -2,7 +2,7 @@
 
 Target: Palworld **1.0.4.102642** (version displayed by the running game), using the owner's existing **UE4SS 3.0.1 Beta #0 / 2281fa31** in `Pal/Binaries/Win64/ue4ss`.
 
-## v0.1.1 checks
+## v0.1.2 checks
 
 - 26 behavioral checks pass under Lua 5.4. These exercise the radius boundary and height, request limits and cooldown, local-player selection, world changes, invalid/collected actors, scheduling, unavailable APIs, network component availability, and cached discovery frequency.
 - A read-only probe of the running game found the pickup function on `PalNetworkPlayerComponent`.
@@ -13,6 +13,10 @@ Target: Palworld **1.0.4.102642** (version displayed by the running game), using
 ## Initial v0.1.0 failure
 
 The first build loaded, but did not collect: its expected `PalPlayerState` pickup API was unavailable in this game version. The user also reported lag. The build was replaced with a one-shot read-only diagnostic, then corrected. Startup success and passing simulated tests did not establish gameplay compatibility.
+
+## v0.1.1 wrapper failure and correction
+
+The live log reported `attempt to call a nil value (method IsValid)` while inspecting effigies. UE4SS marshals out-array elements as `RemoteUnrealParam`; v0.1.1 incorrectly treated them as actors. The correction resolves each entry with `entry:get()` immediately and caches only actor references. Verified this behavior in UE4SS source (`LuaUObject.cpp`, `push_arrayproperty`, using `Operation::GetParam`). The updated test fixture reproduces the v0.1.1 failure, and all 26 checks pass with v0.1.2.
 
 ## Gameplay status
 

@@ -9,7 +9,11 @@ local function fixture(options)
     local world = { IsValid = function() return true end, GetAddress = function() return 1 end }
     world.GetAllActorsOfClass = function(_, pawn, class, output)
         f.discoveries = f.discoveries + 1
-        for i,actor in ipairs(f.relics) do output[i] = actor end
+        for i,actor in ipairs(f.relics) do
+            -- Match UE4SS's GetParam marshaling of UFunction out-array entries.
+            -- The wrapper intentionally has no UObject methods, including IsValid.
+            output[i] = {get = function() return actor end}
+        end
     end
     function f.actor(name, x, y, z)
         return {
