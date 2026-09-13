@@ -5,8 +5,12 @@ local function check(value, message)
     passed = passed + 1
 end
 local function fixture(options)
-    local f = { requests = {}, queue = {}, relics = {}, controllers = {}, logs = {}, finds = {} }
+    local f = { requests = {}, queue = {}, relics = {}, controllers = {}, logs = {}, finds = {}, discoveries=0 }
     local world = { IsValid = function() return true end, GetAddress = function() return 1 end }
+    world.GetAllActorsOfClass = function(_, pawn, class, output)
+        f.discoveries = f.discoveries + 1
+        for i,actor in ipairs(f.relics) do output[i] = actor end
+    end
     function f.actor(name, x, y, z)
         return {
             name = name, position = {X=x or 0, Y=y or 0, Z=z or 0}, world = world,
@@ -27,6 +31,8 @@ local function fixture(options)
     f.controller = f.actor("controller")
     f.controller.Pawn = f.pawn
     f.controller.PlayerState = f.state
+    f.controller.Transmitter = f.actor("transmitter")
+    f.controller.Transmitter.Player = f.state
     f.controller.IsLocalPlayerController = function() return true end
     f.controllers = {f.controller}
     local env = setmetatable({
@@ -35,10 +41,12 @@ local function fixture(options)
         FindAllOf = function(class)
             f.finds[#f.finds+1] = class
             if class == "PalPlayerController" then return f.controllers end
-            assert(class == "PalLevelObjectRelic", "Must only scan effigies")
-            return f.relics
+            error("Unexpected global object scan: " .. class)
         end,
-        StaticFindObject = function() if f.missingAPI then return nil end; return world end,
+        StaticFindObject = function(path)
+            assert(path ~= "/Script/Pal.PalPlayerState:RequestObtainLevelObject_ToServer", "Obsolete pickup route")
+            if f.missingAPI then return nil end; return world
+        end,
         ExecuteInGameThread = function(fn) f.queue[#f.queue+1] = fn end,
         LoopAsync = function(ms, fn) f.interval, f.loop = ms, fn end,
     }, {__index = _G})
@@ -69,11 +77,11 @@ picked.bPickedInClient = true; invalid.alive = false
 other.world = {IsValid=function() return true end, GetAddress=function() return 2 end}
 f.relics = {picked,invalid,other}; f.step()
 check(#f.requests == 0, "Ignore collected, destroyed and other-world actors")
-f.relics = {f.actor("good")}; f.controllers = {}; f.step()
+f.relics = {f.actor("good")}; f.controller.alive=false; f.controllers = {}; f.step()
 check(#f.requests == 0, "No player means no collection")
 local remote = f.actor("remote")
 remote.IsLocalPlayerController = function() return false end
-f.controllers = {remote,f.controller}; f.step()
+f.controller.alive=true; f.controllers = {remote,f.controller}; for _=1,4 do f.step() end
 check(#f.requests == 1, "Select local controller, never a remote player")
 
 f = fixture()
@@ -98,7 +106,7 @@ f.step(); check(#f.requests == 2, "World change resets stale cooldown")
 f = fixture(); f.relics={f.actor("r")}; f.missingAPI=true; f.step(); f.step()
 check(#f.requests == 0, "Missing pickup API fails closed")
 check(#f.logs == 2, "Errors logged only once")
-f.missingAPI=false; f.step(); check(#f.requests == 1, "Recovers after API becomes available")
+f.missingAPI=false; for _=1,4 do f.step() end; check(#f.requests == 1, "Recovers after API becomes available")
 
 f = fixture(); local broken=f.actor("broken")
 broken.K2_GetActorLocation=function() error("unloaded") end
@@ -106,7 +114,7 @@ f.relics={broken,f.actor("good")}; f.step()
 check(#f.requests == 1, "Bad actor does not block good actors")
 f.controller.IsLocalPlayerController=function() error("transition") end
 f.step(); f.controller.IsLocalPlayerController=function() return true end
-f.relics={f.actor("new")}; f.step()
+f.relics={f.actor("new")}; for _=1,4 do f.step() end
 check(#f.requests == 2, "Scan error releases pending flag")
 
 f = fixture({Enabled=false}); check(f.loop == nil, "Disabled mod schedules nothing")
@@ -115,4 +123,10 @@ check(#f.requests == 1, "Custom radius")
 f = fixture({RadiusMeters=0/0,ScanIntervalMs="bad",MaxRequestsPerScan=-1})
 f.relics={f.actor("a",4999),f.actor("b",10)}; f.step()
 check(f.interval == 500 and #f.requests == 1, "Malformed settings fall back or clamp")
+f=fixture(); f.relics={f.actor("r")}
+for _=1,8 do f.step() end
+check(#f.finds == 1, "Player controller global lookup cached")
+check(f.discoveries == 2, "Effigy discovery runs only every two seconds")
+f=fixture(); f.controller.Transmitter.Player=nil; f.relics={f.actor("r")}; f.step()
+check(#f.requests==0, "Missing network transmitter fails closed")
 print(string.format("PASS: %d behavioral checks",passed))

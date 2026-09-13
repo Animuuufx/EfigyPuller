@@ -3,7 +3,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parents[1]
-destination = root / "dist" / "EfigyPuller-v0.1.0.zip"
+destination = root / "dist" / "EfigyPuller-v0.1.1.zip"
 destination.parent.mkdir(parents=True, exist_ok=True)
 files = sorted((root / "EfigyPuller").rglob("*"))
 files += [root / name for name in ("README.md", "LICENSE", "VALIDATION.md")]

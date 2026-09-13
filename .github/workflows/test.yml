@@ -15,5 +15,5 @@ jobs:
         run: python3 tools/package.py
       - uses: actions/upload-artifact@v4
         with:
-          name: EfigyPuller-v0.1.0
-          path: dist/EfigyPuller-v0.1.0.zip
+          name: EfigyPuller-v0.1.1
+          path: dist/EfigyPuller-v0.1.1.zip
