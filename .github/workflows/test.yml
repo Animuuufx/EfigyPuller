@@ -1,0 +1,19 @@
+name: Test and package
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Behavioral tests
+        run: lua5.4 tests/test_runtime.lua
+      - name: Package mod
+        run: python3 tools/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EfigyPuller-v0.1.0
+          path: dist/EfigyPuller-v0.1.0.zip
