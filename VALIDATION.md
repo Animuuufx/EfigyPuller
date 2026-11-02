@@ -1,3 +1,15 @@
+# Validation — November 1, 2026
+
+## EfigyPuller v0.2.0
+
+- Default configurable radius is **200 meters**, measured as a 3D sphere from the local player.
+- The radius has **no upper cap in the Lua script**; any positive, finite number is accepted.
+- The prior 500 m clamp is removed; tests include a 1,500 m boundary and invalid-value fallbacks.
+- The collection request uses the normal server pickup function and is limited to loaded effigies; server acceptance beyond normal interaction range is **not yet validated in-game**.
+- UE4SS target: v3.0.1 Beta 2281fa31 (from the user's prior log).
+
+---
+
 # Validation — 2026-09-13
 
 Target: Palworld **1.0.4.102642** (version displayed by the running game), using the owner's existing **UE4SS 3.0.1 Beta #0 / 2281fa31** in `Pal/Binaries/Win64/ue4ss`.
