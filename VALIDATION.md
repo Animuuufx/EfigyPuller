@@ -1,35 +1,8 @@
-# Validation — November 1, 2026
+# Validation — EfigyPuller v0.3.0
 
-## EfigyPuller v0.2.0
-
-- Default configurable radius is **200 meters**, measured as a 3D sphere from the local player.
-- The radius has **no upper cap in the Lua script**; any positive, finite number is accepted.
-- The prior 500 m clamp is removed; tests include a 1,500 m boundary and invalid-value fallbacks.
-- The collection request uses the normal server pickup function and is limited to loaded effigies; server acceptance beyond normal interaction range is **not yet validated in-game**.
-- UE4SS target: v3.0.1 Beta 2281fa31 (from the user's prior log).
-
----
-
-# Validation — 2026-09-13
-
-Target: Palworld **1.0.4.102642** (version displayed by the running game), using the owner's existing **UE4SS 3.0.1 Beta #0 / 2281fa31** in `Pal/Binaries/Win64/ue4ss`.
-
-## v0.1.2 checks
-
-- 26 behavioral checks pass under Lua 5.4. These exercise the radius boundary and height, request limits and cooldown, local-player selection, world changes, invalid/collected actors, scheduling, unavailable APIs, network component availability, and cached discovery frequency.
-- A read-only probe of the running game found the pickup function on `PalNetworkPlayerComponent`.
-- Generated `CXXHeaderDump/Pal.hpp` using the installed UE4SS. It confirms the signature `RequestObtainLevelObject_ToServer(APalLevelObjectObtainable* TargetObject)`, the `PalPlayerController.Transmitter.Player` route, and `PalLevelObjectObtainable.bPickedInClient`.
-- Replaced global actor scans with `GameplayStatics.GetAllActorsOfClass` every two seconds, and cached the local controller. Distance checks use the cached effigy list every 500 ms.
-- Installed the corrected mod into the existing loader without replacing loader binaries or settings.
-
-## Initial v0.1.0 failure
-
-The first build loaded, but did not collect: its expected `PalPlayerState` pickup API was unavailable in this game version. The user also reported lag. The build was replaced with a one-shot read-only diagnostic, then corrected. Startup success and passing simulated tests did not establish gameplay compatibility.
-
-## v0.1.1 wrapper failure and correction
-
-The live log reported `attempt to call a nil value (method IsValid)` while inspecting effigies. UE4SS marshals out-array elements as `RemoteUnrealParam`; v0.1.1 incorrectly treated them as actors. The correction resolves each entry with `entry:get()` immediately and caches only actor references. Verified this behavior in UE4SS source (`LuaUObject.cpp`, `push_arrayproperty`, using `Operation::GetParam`). The updated test fixture reproduces the v0.1.1 failure, and all 26 checks pass with v0.1.2.
-
-## Gameplay status
-
-Corrected-build pickup, smoothness, and save persistence are pending in-world verification. Multiplayer and other game/UE4SS versions remain unverified. A `Pickup confirmed by game` log records a collected actor flag after requesting pickup; inventory reward and persistence should still be checked in-game.
+- Auto pickup radius default 200m, configuration permits any positive finite meter value.
+- Event-driven discovery through `NotifyOnNewObject("/Script/Pal.PalLevelObjectRelic", ...)`.
+- One initial `GameplayStatics:GetAllActorsOfClass` query per world session.
+- Cached proximity checks use player movement threshold and retry timing.
+- GameThread used for object handling and pickup RPCs, and network requests rate-limited in batches.
+- Live-game behavior, server acceptance of long-range requests, and persistence require in-game testing.
