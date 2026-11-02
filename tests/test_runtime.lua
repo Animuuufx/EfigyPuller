@@ -64,10 +64,10 @@ local function fixture(options)
 end
 
 local f = fixture()
-f.relics = {f.actor("inside",4999), f.actor("boundary",5000), f.actor("outside",5000.01),
-    f.actor("verticalOutside",0,0,5001), f.actor("diagonal",3000,4000), f.actor("verticalBoundary",0,0,5000)}
+f.relics = {f.actor("inside",19999), f.actor("boundary",20000), f.actor("outside",20000.01),
+    f.actor("verticalOutside",0,0,20001), f.actor("diagonal",12000,16000), f.actor("verticalBoundary",0,0,20000)}
 f.step()
-check(#f.requests == 4, "Inclusive 50 m sphere must include four effigies")
+check(#f.requests == 4, "Inclusive 200 m sphere must include four effigies")
 check(f.requests[1] == "inside", "Nearest first")
 check(f.interval == 500, "Default scan interval")
 for _=1,9 do f.step() end
@@ -125,7 +125,7 @@ f = fixture({Enabled=false}); check(f.loop == nil, "Disabled mod schedules nothi
 f = fixture({RadiusMeters=10}); f.relics={f.actor("in",1000),f.actor("out",1001)}; f.step()
 check(#f.requests == 1, "Custom radius")
 f = fixture({RadiusMeters=0/0,ScanIntervalMs="bad",MaxRequestsPerScan=-1})
-f.relics={f.actor("a",4999),f.actor("b",10)}; f.step()
+f.relics={f.actor("a",20001),f.actor("b",10)}; f.step()
 check(f.interval == 500 and #f.requests == 1, "Malformed settings fall back or clamp")
 f=fixture(); f.relics={f.actor("r")}
 for _=1,8 do f.step() end
@@ -133,4 +133,19 @@ check(#f.finds == 1, "Player controller global lookup cached")
 check(f.discoveries == 2, "Effigy discovery runs only every two seconds")
 f=fixture(); f.controller.Transmitter.Player=nil; f.relics={f.actor("r")}; f.step()
 check(#f.requests==0, "Missing network transmitter fails closed")
+
+-- No hardcoded 500 m cap: large configured radii use the chosen boundary.
+f = fixture({RadiusMeters=1500})
+f.relics = {f.actor("insideLarge",149999), f.actor("largeBoundary",150000), f.actor("largeOutside",150001)}
+f.step()
+check(#f.requests == 2, "User-configured 1500 m radius must not be clamped")
+f = fixture({RadiusMeters=-4})
+f.relics={f.actor("invalidFallbackInside",19999),f.actor("invalidFallbackOutside",20001)}
+f.step()
+check(#f.requests == 1, "Invalid negative radius falls back to 200 m")
+f = fixture({RadiusMeters=0})
+f.relics={f.actor("zeroFallbackInside",10000),f.actor("zeroFallbackOutside",21000)}
+f.step()
+check(#f.requests == 1, "Zero radius falls back to 200 m")
+
 print(string.format("PASS: %d behavioral checks",passed))
