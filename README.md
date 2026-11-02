@@ -1,49 +1,75 @@
-# EfigyPuller
+# EfigyPuller v0.3.0 — auto collect nearby Lifmunk Effigies
 
-A Palworld UE4SS Lua mod that **automatically collects loaded effigies within the user-configured radius (200 meters by default)** of your character, including vertical distance. No keypress is needed. It uses the game's normal pickup request, so the game handles rewards and collected flags.
+An install-ready **UE4SS Lua mod** for Palworld. Automatically sends the
+game's ordinary effigy pickup request when a **loaded** Lifmunk Effigy enters
+the configured radius around the **local player**.
 
-This implements automatic collection, not a flying-object animation. Only `PalLevelObjectRelic` actors are targeted; notes, chests, and dropped items are excluded. Distance checks run every 500 ms on the game thread, with at most eight pickup requests per scan and a five-second retry delay per effigy. The local controller is cached; effigies are discovered every two seconds using the engine's world actor query instead of repeatedly scanning all Unreal objects.
+### Configuration
 
-## Install
+Edit `EfigyPuller/Scripts/config.lua` **while Palworld is closed**:
 
-1. Close Palworld. Use your existing working UE4SS installation.
-2. Copy the `EfigyPuller` folder into that loader's `Mods` folder. It must contain `EfigyPuller/Scripts/main.lua` and `EfigyPuller/enabled.txt`.
-3. Start Palworld and enter a world. Approach an uncollected effigy within your configured radius.
+```lua
+return {
+    Enabled = true,
+    RadiusMeters = 200,           -- Default only; any positive number
+    CheckIntervalMs = 1000,       -- Cheap cached-distance checks
+    MovementThresholdMeters = 1,  -- Skip checks when not moving
+    RetrySeconds = 5,
+    MaxRequestsPerCheck = 8,      -- Prevent server/network bursts
+    Debug = false,
+}
+```
 
-For a conventional loader, the destination is `Palworld/Pal/Binaries/Win64/ue4ss/Mods/EfigyPuller`. A native loader may instead use `Palworld/Mods/NativeMods/UE4SS/Mods/EfigyPuller`. Check the latest `UE4SS.log` for **Loading mods from** and use only that directory. Do not install a second UE4SS copy for this mod.
+**There is no maximum radius imposed by this mod.** Use 100, 200, 1000,
+5000 meters, or another positive value. The game must first stream the
+effigy into memory, and its server must permit the pickup request. A 5000 m
+radius cannot collect actors outside the game's loading distance.
 
-The included `enabled.txt` enables the mod without changing other mods. If you already have an explicit `EfigyPuller : 0` in `mods.txt`, change it to `EfigyPuller : 1`.
+### Performance
 
-## Configuration
+- One initial `GameplayStatics.GetAllActorsOfClass` seed per world.
+- `NotifyOnNewObject` tracks new Lifmunk Effigies as they stream in.
+- **No recurring actor-discovery scans** if event registration succeeds.
+- The cached list receives a cheap 3D distance check at most once per
+  `CheckIntervalMs` (default 1000 ms). With no movement and no new effigies
+  or pending retries, even that work is skipped.
+- Only nearby uncollected effigies cause pickup RPCs. The request limit
+  prevents excessive network bursts; it is not a continuous polling rate.
+- If the engine hook is unavailable, only then is a slow 30 s fallback
+  discovery performed.
 
-Edit the file `EfigyPuller/Scripts/config.lua` before launching the game. `RadiusMeters = 200` is only the default: use `RadiusMeters = 75`, `RadiusMeters = 1000` or any other **positive** number. No upper limit is imposed by this mod. Invalid, zero or negative values use the 200 m default. Save the file and restart Palworld.
+### Installation
 
-Edit `EfigyPuller/Scripts/config.lua` while the game is closed:
+Close Palworld. Extract `EfigyPuller` into your active UE4SS Mods folder,
+usually:
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| Enabled | true | Turn collection on/off |
-| RadiusMeters | 200 | 3D pickup radius in meters; any positive finite value (no hard maximum) |
-| ScanIntervalMs | 500 | Scan interval (100â€“10000 ms) |
-| DiscoveryIntervalMs | 2000 | Refresh loaded effigies (500â€“30000 ms) |
-| RetrySeconds | 5 | Delay before retrying an unconfirmed pickup |
-| MaxRequestsPerScan | 8 | Limit pickup traffic per scan |
-| Debug | false | Log individual pickup requests |
+```text
+Palworld/Pal/Binaries/Win64/ue4ss/Mods/EfigyPuller/
+  enabled.txt
+  Scripts/main.lua
+  Scripts/config.lua
+```
 
-Large radii do **not** load distant effigies. Only effigies already streamed into the world can be collected. Some multiplayer servers may also refuse distant pickup requests. The mod does not override server permission or range validation. The local player receives pickup requests. On multiplayer servers, the server decides whether requests succeed; remote server compatibility is unverified. Dedicated-server operation without a local player is not supported.
+If UE4SS lists a different `Loading mods from:` folder in `UE4SS.log`,
+use that folder instead. Do not install a second copy of UE4SS.
 
-## Validation and troubleshooting
+### Notes
 
-Built against the owner's running **Palworld 1.0.4.102642**, with existing UE4SS v3.0.1 Beta, revision `2281fa31`. The reflected definitions generated by that loader confirm the pickup function is `PalNetworkPlayerComponent:RequestObtainLevelObject_ToServer(APalLevelObjectObtainable*)`, accessed through the local controller's `Transmitter.Player`. See `VALIDATION.md` for actual test status.
+- Uses the engine's normal
+  `PalNetworkPlayerComponent:RequestObtainLevelObject_ToServer` RPC.
+- Does **not** create rewards, skip server permissions, collect notes,
+  or move effigies physically toward the character.
+- Multiplayer server acceptance and large-radius pickup **are not
+  yet verified in-game**.
+- Debug in `config.lua` shows discovery and request messages in
+  `UE4SS.log`.
+- If your UE4SS setup already has a conflicting old copy of EfigyPuller,
+  remove it first.
 
-In `UE4SS.log`, look for `[EfigyPuller] Loaded v0.2.0`, followed by `Game API ready` after entering a world. Enable `Debug` to see pickup requests and discovery counts. `Pickup confirmed by game` means the actor's collected flag was observed after a request; a request alone is not proof of a reward. Verify inventory increases and persistence after leaving and reloading the world. If the game API changes, errors are logged once per category to avoid flooding the log.
+### Development and testing
 
-To uninstall, close the game and remove only the `EfigyPuller` folder. Effigies already collected stay collected.
+Run `lua tests/test_runtime.lua` against Lua 5.4 to exercise the mock
+game-world scenarios. Static/offline tests do not establish live Palworld
+compatibility.
 
-## Development
-
-Run `lua tests/test_runtime.lua` from the repository root using Lua 5.4. The tests simulate UE4SS and verify the range boundary, player selection, filtering, request throttling, world changes, and scheduling. They cannot establish actual game compatibility.
-
-Reference APIs: [UE4SS FindAllOf](https://docs.ue4ss.com/lua-api/global-functions/findallof.html), [ExecuteInGameThread](https://docs.ue4ss.com/lua-api/global-functions/executeingamethread.html), and [Palworld reflected declarations](https://gist.github.com/DRayX/1839565378bc7fb7c92232e25a131d8a).
-
-License: GPL-3.0, as selected by this repository's existing LICENSE.
+License: GPL-3.0, as selected by the existing project.
