@@ -53,6 +53,11 @@ end
 
 -- Newly streamed effigies are discovered via event, not by polling the entire world.
 -- Defer to the game thread because an actor can be mid-initialization at construction.
+if config.Enabled == false then
+    log("Disabled in config.lua.")
+    return
+end
+
 local eventReady = false
 local eventOk, eventError = pcall(function()
     NotifyOnNewObject("/Script/Pal.PalLevelObjectRelic", function(actor)
@@ -207,15 +212,12 @@ local function check()
         end)
         if not ok then warnOnce("request", "Pickup request failed: " .. tostring(err)) end
     end
+    if #candidates > maxRequests then dirty = true end -- drain remaining nearby effigies next check
     if config.Debug and #candidates > 0 then
         log(string.format("Nearby=%d requests this check=%d, cached=%d", #candidates, math.min(#candidates,maxRequests), #actors))
     end
 end
 
-if config.Enabled == false then
-    log("Disabled in config.lua.")
-    return
-end
 log(string.format("Loaded: radius=%g m; proximity checks=%d ms; new-effigy event=%s",
     radiusMeters, interval, tostring(eventReady)))
 LoopAsync(interval, function()
