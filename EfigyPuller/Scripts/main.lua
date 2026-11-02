@@ -5,7 +5,16 @@ local function bounded(value, fallback, low, high)
     if type(value) ~= "number" or value ~= value then return fallback end
     return math.max(low, math.min(high, value))
 end
-local radius = bounded(config.RadiusMeters, 50, 1, 500) * 100
+-- Any positive finite radius is allowed; there is deliberately no maximum radius.
+-- Only effigies streamed into the loaded world can be discovered, even if
+-- RadiusMeters is larger than the game's streaming distance.
+local function radius_meters(value)
+    if type(value) ~= "number" or value ~= value or value == math.huge or value <= 0 then
+        return 200
+    end
+    return value
+end
+local radius = radius_meters(config.RadiusMeters) * 100
 local interval = math.floor(bounded(config.ScanIntervalMs, 500, 100, 10000))
 local retryTicks = math.ceil(bounded(config.RetrySeconds, 5, 1, 60) * 1000 / interval)
 local limit = math.floor(bounded(config.MaxRequestsPerScan, 8, 1, 32))
@@ -135,7 +144,7 @@ if config.Enabled == false then
     log("Disabled in config.lua.")
     return
 end
-log(string.format("Loaded v0.1.2: auto-collect within %.1f meters, scanning every %d ms.", radius / 100, interval))
+log(string.format("Loaded v0.2.0: auto-collect within %.1f meters, scanning every %d ms.", radius / 100, interval))
 LoopAsync(interval, function()
     -- Do not enqueue more work while a paused/loading game has a scan outstanding.
     if pending then return false end
